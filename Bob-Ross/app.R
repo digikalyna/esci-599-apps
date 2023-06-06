@@ -1,10 +1,13 @@
 ## -------------------------------------------
-## Bob Ross App v.0.1.2
+## Bob Ross App 
 ## KD 2023-5-12
 ## test app
 ## load and wrangle data
 ## user chooses a painting
 ## painting is displayed
+## 2023-05-14: 2 functions
+## 2023-05-17: extra info about paintings
+## 2023-06-05: random button; start of attribute panel
 ## -------------------------------------------
 
 ##------------------------------------------------------------------------------
@@ -30,11 +33,27 @@ bob_ross <- bind_cols(bob_ross_col, bob_ross_obj) %>%
   rename_with(str_to_lower) %>% 
   mutate(across(28:94, as.logical))
 
+## create named vector of colors
+col_bob_ross <- names(bob_ross[, 10:27])
+names(col_bob_ross) <- col_bob_ross %>% 
+  str_replace_all("_", " ") %>% 
+  str_to_title
+
+## create named vector of colors
+obj_bob_ross <- names(bob_ross[, 28:94])
+names(obj_bob_ross) <- obj_bob_ross %>% 
+  str_replace_all("_", " ") %>% 
+  str_to_title
+  
+
 ##-------------------------------------------
 ## functions
-## edit 2023-05-17: make list of func to write;
-## wrote 2 functions
 ##-------------------------------------------
+
+## get random painting title
+get_random_title <- function() {
+  sample(bob_ross$painting_title, 1)
+}
 
 ## get the index number for a particular painting
 get_row_from_title <- function(title) {
@@ -77,39 +96,71 @@ does_idx_have_obj <- function(index, obj) {
 
 ## other ideas: random button, search by frame?
 
+
 ##------------------------------------------------------------------------------
 ## Shiny App
 
 ##-------------------------------------------
 ## Define UI 
-## addition 2023-5-17: title, layout stuff
-## note- can't have fluidrows with tabsets :(
 ##-------------------------------------------
-ui <- fluidPage(theme = shinytheme("sandstone"),
-  titlePanel("Happy Accidents"),
-  fluidRow(
-    column(4,
-           selectInput(
-             "title",
-             label = "Which painting would you like to see?",
-             choices = bob_ross$painting_title),
+ui <- navbarPage("Happy Accidents", theme = shinytheme("sandstone"),
+  tabPanel("By Painting",
+    fluidRow(
+      column(4,
+        selectInput(
+          "title_of_painting",
+          label = "Which painting would you like to see?",
+          choices = bob_ross$painting_title
+        ),
+        actionButton(
+          "random_title_button", 
+          "Choose a painting for me", 
+          class = "btn-block"
+        ),
+      ),
+      
+      column(8,
+        textOutput("paint_pryvit"),
+        htmlOutput("show_painting")
+      ),
     ),
     
-    column(8, 
-           textOutput("paint_pryvit"),
-           htmlOutput("show_painting")
-    ),
+    fluidRow(style = "padding-top: 20px;",
+      column(6,
+        htmlOutput("title_colors"),
+        textOutput("list_of_colors")
+      ),
+      column(6,
+        htmlOutput("title_objs"),
+        textOutput("list_of_objs")
+      ),
+    )
   ),
   
-  fluidRow(
-    column(6,
-           textOutput("title_colors"),
-           textOutput("list_of_colors")
+  tabPanel("By Attributes",
+    fluidRow(
+      column(6,
+        selectInput(
+          "color_title",
+          multiple = TRUE,
+          label = "What color(s) would you like to explore?",
+          choices = col_bob_ross
+        ),
+      ),   
+      column(6,
+        selectInput(
+          "object_title",
+          multiple = TRUE,
+          label = "What object(s) would you like to explore?",
+          choices = obj_bob_ross
+        ),
+      ),
     ),
-    column(6,
-           textOutput("title_objs"),
-           textOutput("list_of_objs")
-    ),
+    fluidRow(
+      column(6, offset = 3,
+        textOutput("col_obj_vector")
+      )
+    )
   )
 )
 
@@ -118,8 +169,10 @@ ui <- fluidPage(theme = shinytheme("sandstone"),
 ##-------------------------------------------
 server <- function(input, output, session) {
   
+  ## by painting tab
+
   row_index <- reactive(
-    get_row_from_title(input$title)
+    get_row_from_title(input$title_of_painting)
   )
   
   img_colors <- reactive(
@@ -131,7 +184,7 @@ server <- function(input, output, session) {
   )
   
   output$title_colors <- renderText({
-    paste("This painting features the following colors: ")
+    HTML("<strong>This painting features the following colors: </strong>")
   })
   
   output$list_of_colors <- renderText({
@@ -139,7 +192,7 @@ server <- function(input, output, session) {
   })
   
   output$title_objs <- renderText({
-    paste0("This painting features the following objects: ")
+    HTML("<strong>This painting features the following objects: </strong>")
   })
   
   output$list_of_objs <- renderText({
@@ -149,6 +202,34 @@ server <- function(input, output, session) {
   output$show_painting <- renderText({
     c('<img src="', bob_ross$img_src[row_index()],'">')
   })
+  
+  ## To save dynamic randomized title
+  rv <- reactiveValues()
+  
+  ## randomized button
+  ## from https://stackoverflow.com/questions/75490869/
+  ## r-shiny-actionbutton-to-generate-random-value-from-input-values-and-render-plot
+  observeEvent(input$random_title_button, {
+    ## Select a random title
+    rv$title_of_painting <- get_random_title()
+    ## Update the value of dropdown with random title selected
+    updateSelectInput(session, inputId = "title_of_painting",
+                      label = "Which painting would you like to see?",
+                      choices = bob_ross$painting_title, 
+                      selected = rv$title_of_painting)
+  })
+  
+  ## by attributes tab
+  
+  col_obj_vector <- reactive(
+    c(unname(input$color_title), input$object_title)
+  )
+  
+  output$col_obj_vector <- renderText({
+    col_obj_vector()
+  })
+  
+  
 }
 
 ##-------------------------------------------
