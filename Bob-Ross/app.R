@@ -1,23 +1,29 @@
-## -------------------------------------------
+##------------------------------------------------------------------------------
 ## Bob Ross App 
 ## KD 2023-5-12
-## test app
-## load and wrangle data
-## user chooses a painting
-## painting is displayed
+## explore Bob Ross paintings
+## by title or attributes such as
+## color or object
+##-------------------------------------------
 ## 2023-05-14: 2 functions
 ## 2023-05-17: extra info about paintings
 ## 2023-06-05: random button; start of attribute panel
-## -------------------------------------------
+##------------------------------------------------------------------------------
 
 ##------------------------------------------------------------------------------
 ## packages and data
+##------------------------------------------------------------------------------
 library(shiny)
 library(shinythemes)
 library(tidyverse)
 
-bob_ross_col <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-02-21/bob_ross.csv')
-bob_ross_obj <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-08-06/bob-ross.csv")
+bob_ross_col <- readr::read_csv(
+  'https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-02-21/bob_ross.csv'
+)
+
+bob_ross_obj <- readr::read_csv(
+  "https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-08-06/bob-ross.csv"
+)
 
 ##------------------------------------------------------------------------------
 ## R code
@@ -26,8 +32,10 @@ bob_ross_obj <- readr::read_csv("https://raw.githubusercontent.com/rfordatascien
 ## tidy the data
 ##-------------------------------------------
 
+## take out redundant data
 bob_ross_obj <- bob_ross_obj %>% 
   select(-EPISODE, -TITLE)
+
 ## put together dfs, col lower case, make logicals
 bob_ross <- bind_cols(bob_ross_col, bob_ross_obj) %>% 
   rename_with(str_to_lower) %>% 
@@ -84,27 +92,31 @@ get_objs_from_index <- function(index) {
     sort
 }
 
-## returns TRUE if painting has given color
-does_idx_have_color <- function(index, color) {
-  ## TODO
+## gets list of paintings with selected attributes
+paintings_with_attributes <- function(the_attr_vector) {
+  if(length(the_attr_vector) == 0) {
+    return(c())
+  } else {
+    ## select columns in bob_ross based on user-created vector
+    list_of_paintings <- bob_ross %>% 
+      filter(if_all(.col = all_of(the_attr_vector))) %>% 
+      select(painting_title) %>% 
+      as_vector()
+    return(list_of_paintings)  
+  }
 }
-
-## returns TRUE if painting has given object
-does_idx_have_obj <- function(index, obj) {
-  ## TODO
-}
-
-## other ideas: random button, search by frame?
-
 
 ##------------------------------------------------------------------------------
 ## Shiny App
-
+##------------------------------------------------------------------------------
 ##-------------------------------------------
 ## Define UI 
 ##-------------------------------------------
 ui <- navbarPage("Happy Accidents", theme = shinytheme("sandstone"),
-  tabPanel("By Painting",
+   ##-------------------------------------------
+   ## by painting tab
+   ##-------------------------------------------
+    tabPanel("By Painting",
     fluidRow(
       column(4,
         selectInput(
@@ -118,9 +130,7 @@ ui <- navbarPage("Happy Accidents", theme = shinytheme("sandstone"),
           class = "btn-block"
         ),
       ),
-      
       column(8,
-        textOutput("paint_pryvit"),
         htmlOutput("show_painting")
       ),
     ),
@@ -136,7 +146,9 @@ ui <- navbarPage("Happy Accidents", theme = shinytheme("sandstone"),
       ),
     )
   ),
-  
+  ##-------------------------------------------
+  ## by attributes tab
+  ##-------------------------------------------
   tabPanel("By Attributes",
     fluidRow(
       column(6,
@@ -156,9 +168,13 @@ ui <- navbarPage("Happy Accidents", theme = shinytheme("sandstone"),
         ),
       ),
     ),
-    fluidRow(
-      column(6, offset = 3,
-        textOutput("col_obj_vector")
+    fluidRow(style = "padding-top: 20px;",
+      column(6,
+        htmlOutput("show_first_painting")
+    ),
+      column(6,
+      htmlOutput("title_paintings_list"),
+      textOutput("show_paintings_with_attr"),
       )
     )
   )
@@ -169,7 +185,9 @@ ui <- navbarPage("Happy Accidents", theme = shinytheme("sandstone"),
 ##-------------------------------------------
 server <- function(input, output, session) {
   
+  ##-------------------------------------------
   ## by painting tab
+  ##-------------------------------------------
 
   row_index <- reactive(
     get_row_from_title(input$title_of_painting)
@@ -219,20 +237,60 @@ server <- function(input, output, session) {
                       selected = rv$title_of_painting)
   })
   
+  ##-------------------------------------------
   ## by attributes tab
-  
+  ##-------------------------------------------
   col_obj_vector <- reactive(
-    c(unname(input$color_title), input$object_title)
+    c(input$color_title, input$object_title)
   )
+  
+  show_paintings_with_attr <- reactive(
+    paste(paintings_with_attributes(col_obj_vector()), collapse = ", ")
+  )
+  
+  first_row_index <- reactive(
+    #get_row_from_title(get_first_painting(show_paintings_with_attr()))
+    get_row_from_title(paintings_with_attributes(col_obj_vector())[1])
+  )
+  
+  output$title_col_obj <- renderText({
+    HTML("<strong>These are the attributes you've selected: </strong>")
+  })
   
   output$col_obj_vector <- renderText({
     col_obj_vector()
   })
   
+  output$title_paintings_list <- renderText({
+    HTML("<strong>The following paintings have your selected attributes: </strong>")
+  })
   
+  output$show_paintings_with_attr <- renderText({
+    show_paintings_with_attr()
+  })
+  
+  output$show_first_painting <- renderText({
+    #first_row_index()
+    c('<img src="', bob_ross$img_src[first_row_index()],'">')
+  })
 }
 
 ##-------------------------------------------
 ## Run the application 
 ##-------------------------------------------
 shinyApp(ui = ui, server = server)
+
+##------------------------------------------------------------------------------
+## Ideas
+##------------------------------------------------------------------------------
+
+## make attributes image random
+## search by frame/particular types of objects
+## actual statistical things
+## clean up functions
+## messages when no attributes selected or no paintings match selection
+## overall make it prettier
+
+##------------------------------------------------------------------------------
+## End document
+##------------------------------------------------------------------------------
